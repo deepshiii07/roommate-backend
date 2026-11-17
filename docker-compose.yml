@@ -1,0 +1,22 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: roomiesync-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: roomiesync
+      MYSQL_USER: roomiesync
+      MYSQL_PASSWORD: roomiesync_local_dev
+      MYSQL_ROOT_PASSWORD: root_local_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - roomiesync_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot_local_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  roomiesync_mysql_data:
