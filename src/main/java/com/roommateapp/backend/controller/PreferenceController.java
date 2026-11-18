@@ -8,30 +8,21 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/preferences")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173", "https://roomiesync.vercel.app"})
 public class PreferenceController {
+    @Autowired private PreferenceService preferenceService;
 
-    @Autowired
-    private PreferenceService preferenceService;
-
-    // ✅ GET preferences for a user
     @GetMapping("/{userId}")
     public ResponseEntity<?> getPreferences(@PathVariable Long userId) {
         RoommateProfile profile = preferenceService.getPreferencesByUserId(userId);
-        if (profile != null) {
-            return ResponseEntity.ok(profile);
-        } else {
-            return ResponseEntity.status(404).body("Preferences not found");
-        }
+        return profile == null ? ResponseEntity.notFound().build() : ResponseEntity.ok(profile);
     }
 
-    // ✅ CREATE or UPDATE preferences
     @PostMapping("/{userId}")
     public ResponseEntity<?> setOrUpdatePreferences(@PathVariable Long userId,
-                                                    @RequestBody RoommateProfile profile) {
+                                                     @RequestBody RoommateProfile profile) {
         try {
-            RoommateProfile savedProfile = preferenceService.saveOrUpdatePreferences(userId, profile);
-            return ResponseEntity.ok(savedProfile);
+            return ResponseEntity.ok(preferenceService.saveOrUpdatePreferences(userId, profile));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Error saving preferences: " + e.getMessage());
         }
