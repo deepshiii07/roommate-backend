@@ -9,10 +9,9 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174", "https://roomiesync.vercel.app"})
 public class MatchController {
-
-    @Autowired
-    private MatchService matchService;
+    @Autowired private MatchService matchService;
 
     @GetMapping("/match/{id}")
     public List<User> getMatches(@PathVariable Long id) {
