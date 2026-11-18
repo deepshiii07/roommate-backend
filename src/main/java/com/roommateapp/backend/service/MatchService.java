@@ -1,5 +1,6 @@
 package com.roommateapp.backend.service;
 
+import com.roommateapp.backend.dto.RoommateMatchResponse;
 import com.roommateapp.backend.model.RoommateProfile;
 import com.roommateapp.backend.model.User;
 import com.roommateapp.backend.repository.RoommateProfileRepository;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -23,87 +25,129 @@ public class MatchService {
         this.userRepository = userRepository;
     }
 
-    public List<User> findMatches(Long userId) {
-        User currentUser = userRepository.findById(userId).orElse(null);
-        RoommateProfile currentPreferences = profileRepository.findByUserId(userId).orElse(null);
-        if (currentUser == null || currentPreferences == null) return List.of();
+    public List<RoommateMatchResponse> findMatches(Long userId) {
+        User me = userRepository.findById(userId).orElse(null);
+        RoommateProfile mine = profileRepository.findByUserId(userId).orElse(null);
+        if (me == null || mine == null || blank(me.getLocation())) return List.of();
 
-        String city = normalize(currentUser.getLocation());
-        if (city.isBlank()) return List.of();
+        List<RoommateMatchResponse> results = new ArrayList<>();
+        for (User candidate : userRepository.findAll()) {
+            if (candidate.getId() == null || candidate.getId().equals(userId)
+                    || !sameCity(me.getLocation(), candidate.getLocation())) continue;
+            RoommateProfile theirs = profileRepository.findByUserId(candidate.getId()).orElse(null);
+            if (theirs == null || !mutualGenderFit(mine.getPreferredGender(), candidate.getGender(),
+                    theirs.getPreferredGender(), me.getGender())) continue;
 
-        return userRepository.findAll().stream()
-            .filter(candidate -> candidate.getId() != null && !candidate.getId().equals(userId))
-            .filter(candidate -> samePlace(city, normalize(candidate.getLocation())))
-            .filter(candidate -> profileRepository.findByUserId(candidate.getId())
-                .map(candidatePreferences ->
-                    mutuallyAcceptGender(currentPreferences, currentUser, candidatePreferences, candidate))
-                .orElse(false))
-            .sorted(Comparator
-                .comparingInt((User candidate) -> compatibilityScore(
-                    currentPreferences,
-                    profileRepository.findByUserId(candidate.getId()).orElse(null)))
-                .reversed())
-            .toList();
-    }
-
-    // City is the hard location boundary. Preferred areas influence ranking,
-    // rather than excluding people who are considering a nearby neighbourhood.
-    private boolean samePlace(String first, String second) {
-        if (first.isBlank() || second.isBlank()) return false;
-        return first.equals(second) || first.contains(second) || second.contains(first);
-    }
-
-    private boolean mutuallyAcceptGender(RoommateProfile mine, User me,
-                                         RoommateProfile theirs, User candidate) {
-        return accepts(mine.getPreferredGender(), candidate.getGender())
-            && accepts(theirs.getPreferredGender(), me.getGender());
-    }
-
-    private boolean accepts(String preference, String gender) {
-        String wanted = normalize(preference);
-        if (wanted.isBlank() || wanted.equals("any") || wanted.equals("doesn't matter")
-                || wanted.equals("doesnt matter")) return true;
-        return wanted.equals(normalize(gender));
-    }
-
-    private int compatibilityScore(RoommateProfile mine, RoommateProfile theirs) {
-        if (theirs == null) return 0;
-        int score = 0;
-        String myArea = normalize(mine.getPreferredLocation());
-        String theirArea = normalize(theirs.getPreferredLocation());
-        if (!myArea.isBlank() && !theirArea.isBlank()) {
-            if (myArea.equals(theirArea)) score += 40;
-            else if (myArea.contains(theirArea) || theirArea.contains(myArea)) score += 25;
-            else score += 5; // Same city still makes this a possible match.
+            Score score = score(mine, theirs);
+            results.add(new RoommateMatchResponse(candidate.getId(), candidate.getName(),
+                candidate.getEmail(), candidate.getPhone(), candidate.getGender(),
+                candidate.getLocation(), score.value, score.reasons));
         }
-        score += preferenceSimilarity(mine.getSmokerPreference(), theirs.getSmokerPreference(), 15);
-        score += preferenceSimilarity(mine.getDrinkerPreference(), theirs.getDrinkerPreference(), 15);
-        score += preferenceSimilarity(mine.getReligiousPreference(), theirs.getReligiousPreference(), 10);
-        score += preferenceSimilarity(mine.getBedtimePreference(), theirs.getBedtimePreference(), 10);
-        score += preferenceSimilarity(mine.getStudyTiming(), theirs.getStudyTiming(), 10);
-        return score;
+        results.sort(Comparator.comparingInt(RoommateMatchResponse::getCompatibilityScore).reversed());
+        return results;
     }
 
-    private int preferenceSimilarity(String first, String second, int weight) {
-        String a = normalize(first);
-        String b = normalize(second);
-        if (a.isBlank() || b.isBlank()) return 0;
-        if (a.equals(b)) return weight;
-        if (isFlexible(a) || isFlexible(b)) return weight / 2;
-        return 0;
+    private Score score(RoommateProfile mine, RoommateProfile theirs) {
+        int total = 0;
+        List<String> reasons = new ArrayList<>();
+
+        String a = normalize(mine.getPreferredLocation());
+        String b = normalize(theirs.getPreferredLocation());
+        if (!a.isBlank() && !b.isBlank()) {
+            if (a.equals(b)) { total += 25; reasons.add("You both prefer " + mine.getPreferredLocation() + "."); }
+            else if (a.contains(b) || b.contains(a)) { total += 18; reasons.add("Your preferred neighbourhoods are closely named."); }
+            else { total += 8; reasons.add("You're in the same city, with different preferred areas."); }
+        }
+
+        total += comparePreference(mine.getSmokerPreference(), theirs.getLifestyleSmoking(),
+            theirs.getSmokerPreference(), mine.getLifestyleSmoking(), 15, "Smoking habits", reasons);
+        total += comparePreference(mine.getDrinkerPreference(), theirs.getLifestyleDrinking(),
+            theirs.getDrinkerPreference(), mine.getLifestyleDrinking(), 10, "Drinking habits", reasons);
+        total += comparePreference(mine.getReligiousPreference(), theirs.getLifestyleReligion(),
+            theirs.getReligiousPreference(), mine.getLifestyleReligion(), 10, "Religious preferences", reasons);
+        total += comparePreference(mine.getBedtimePreference(), theirs.getLifestyleSleep(),
+            theirs.getBedtimePreference(), mine.getLifestyleSleep(), 15, "Sleep schedules", reasons);
+        total += comparePreference(mine.getStudyTiming(), theirs.getLifestyleRoutine(),
+            theirs.getStudyTiming(), mine.getLifestyleRoutine(), 10, "Daily routines", reasons);
+        total += comparePreference(mine.getCleanlinessPreference(), theirs.getLifestyleCleanliness(),
+            theirs.getCleanlinessPreference(), mine.getLifestyleCleanliness(), 10, "Cleanliness habits", reasons);
+        total += comparePreference(mine.getSocialPreference(), theirs.getLifestyleSocial(),
+            theirs.getSocialPreference(), mine.getLifestyleSocial(), 10, "Social lifestyle", reasons);
+        total += comparePreference(mine.getGuestPreference(), theirs.getLifestyleGuests(),
+            theirs.getGuestPreference(), mine.getLifestyleGuests(), 10, "Guest preferences", reasons);
+
+        if (reasons.isEmpty()) reasons.add("You are in the same city and accept each other's roommate preferences.");
+        return new Score(Math.min(100, total), reasons);
+    }
+
+    private int comparePreference(String myRequirement, String theirActual,
+                                  String theirRequirement, String myActual,
+                                  int weight, String label, List<String> reasons) {
+        int points = direction(myRequirement, theirActual, weight / 2)
+            + direction(theirRequirement, myActual, weight - weight / 2);
+        if (points == weight) reasons.add("Compatible " + label.toLowerCase(Locale.ROOT) + ".");
+        return points;
+    }
+
+    private int direction(String requirement, String actual, int weight) {
+        String wanted = normalize(requirement);
+        String reality = normalize(actual);
+        if (wanted.isBlank() || reality.isBlank()) return 0;
+        if (isFlexible(wanted)) return weight;
+        return wanted.equals(reality) ? weight : 0;
+    }
+
+    private boolean mutualGenderFit(String myPreference, String theirGender,
+                                    String theirPreference, String myGender) {
+        return genderAccepts(myPreference, theirGender) && genderAccepts(theirPreference, myGender);
+    }
+
+    private boolean genderAccepts(String preference, String gender) {
+        String p = normalize(preference);
+        if (p.isBlank() || isFlexible(p) || p.equals("any gender")) return true;
+        String g = normalize(gender);
+        if (p.equals("women") || p.equals("woman")) p = "female";
+        if (p.equals("men") || p.equals("man")) p = "male";
+        if (p.equals("non binary") || p.equals("nonbinary")) p = "other";
+        return p.equals(g);
+    }
+
+    private boolean sameCity(String first, String second) {
+        String a = normalize(first), b = normalize(second);
+        if (a.isBlank() || b.isBlank()) return false;
+        a = canonicalCity(a); b = canonicalCity(b);
+        return a.equals(b);
+    }
+
+    private String canonicalCity(String city) {
+        return switch (city) {
+            case "bangalore", "bengaluru", "blr" -> "bengaluru";
+            case "bombay", "mumbai" -> "mumbai";
+            case "calcutta", "kolkata" -> "kolkata";
+            case "madras", "chennai" -> "chennai";
+            case "gurgaon", "gurugram" -> "gurugram";
+            default -> city;
+        };
     }
 
     private boolean isFlexible(String value) {
-        return value.equals("any") || value.equals("flexible")
-            || value.equals("doesn't matter") || value.equals("doesnt matter");
+        return value.isBlank() || value.equals("any") || value.equals("flexible")
+            || value.equals("doesnt matter") || value.equals("no preference")
+            || value.equals("any gender");
     }
+
+    private boolean blank(String value) { return value == null || value.trim().isEmpty(); }
 
     private String normalize(String value) {
         if (value == null) return "";
-        String cleaned = Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}", "");
-        return cleaned.toLowerCase(Locale.ROOT).trim()
-            .replaceAll("[^a-z0-9 ]", "")
-            .replaceAll("\\s+", " ");
+        String decomposed = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        return decomposed.toLowerCase(Locale.ROOT).trim()
+            .replaceAll("[^a-z0-9 ]", "").replaceAll("\\s+", " ");
+    }
+
+    private static class Score {
+        final int value;
+        final List<String> reasons;
+        Score(int value, List<String> reasons) { this.value = value; this.reasons = reasons; }
     }
 }
