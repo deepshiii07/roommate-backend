@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/preferences")
-@CrossOrigin(origins = {"http://localhost:5173", "https://roomiesync.vercel.app"})
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174", "https://roomiesync.vercel.app"})
 public class PreferenceController {
     @Autowired private PreferenceService preferenceService;
 
