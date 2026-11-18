@@ -1,5 +1,6 @@
 package com.roommateapp.backend.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.roommateapp.backend.dto.LoginRequest;
 import com.roommateapp.backend.model.User;
 import com.roommateapp.backend.service.UserService;
@@ -19,8 +20,23 @@ public class UserController {
     @Autowired private UserService userService;
 
     @PostMapping("/register")
-    public User registerUser(@RequestBody User user) {
-        return userService.registerUser(user);
+    public ResponseEntity<?> registerUser(@RequestBody JsonNode request) {
+        String password = request.path("password").asText("");
+        String name = request.path("name").asText("");
+        String email = request.path("email").asText("");
+        if (password.isBlank() || name.isBlank() || email.isBlank()) {
+            return ResponseEntity.badRequest().body(Collections.singletonMap(
+                    "error", "Name, email and password are required."));
+        }
+
+        User user = new User();
+        user.setName(name);
+        user.setEmail(email);
+        user.setPassword(password);
+        user.setPhone(request.path("phone").asText(""));
+        user.setGender(request.path("gender").asText(""));
+        user.setLocation(request.path("location").asText(""));
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.registerUser(user));
     }
 
     @PostMapping("/login")
