@@ -53,7 +53,7 @@ public class DemoProfileSeeder implements CommandLineRunner {
         "Andheri West","Powai","Bandra West","Goregaon","Chembur",
         "Adyar","Velachery","Anna Nagar","T. Nagar","Sholinganallur",
         "Dwarka","Saket","Lajpat Nagar","Rohini","Greater Kailash",
-        "Sector 56","Sector 45","DLF Phase 3","Sushant Lok","Sector  Gurgaon",
+        "Sector 56","Sector 45","DLF Phase 3","Sushant Lok","Sector 57",
         "Prahlad Nagar","Satellite","Bodakdev","Vastrapur","Thaltej",
         "Malviya Nagar","Vaishali Nagar","Mansarovar","Jagatpura","C-Scheme"
     };
