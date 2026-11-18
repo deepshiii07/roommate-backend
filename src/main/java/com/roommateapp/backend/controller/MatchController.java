@@ -2,16 +2,14 @@ package com.roommateapp.backend.controller;
 
 import com.roommateapp.backend.model.User;
 import com.roommateapp.backend.service.MatchService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/users")
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174", "https://roomiesync.vercel.app"})
 public class MatchController {
-    @Autowired private MatchService matchService;
+    private final MatchService matchService;
+    public MatchController(MatchService matchService) { this.matchService = matchService; }
 
     @GetMapping("/match/{id}")
     public List<User> getMatches(@PathVariable Long id) {
