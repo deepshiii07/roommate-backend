@@ -1,28 +1,42 @@
 package com.roommateapp.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "roommate_profiles")
 public class RoommateProfile {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @OneToOne
-    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    @JoinColumn(name = "user_id", referencedColumnName = "id", unique = true)
     private User user;
 
     private String preferredGender;
-    // A neighbourhood / locality within the user's current city (User.location).
+
+    // The existing column is retained as the preferred neighbourhood field.
     @Column(name = "preferred_location")
     private String preferredLocation;
+
+    // Legacy database compatibility only. The field is not part of the product or API.
+    @JsonIgnore
+    @Column(name = "preferred_academic_year")
+    private Integer legacyPreferredAcademicYear = 0;
+
     private String smokerPreference;
     private String drinkerPreference;
     private String religiousPreference;
     private String bedtimePreference;
     private String studyTiming;
+
+    @PrePersist
+    @PreUpdate
+    private void applyLegacyDefaults() {
+        if (legacyPreferredAcademicYear == null) legacyPreferredAcademicYear = 0;
+    }
 
     public Long getId() { return id; }
     public User getUser() { return user; }
