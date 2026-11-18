@@ -14,61 +14,37 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/users")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174", "https://roomiesync.vercel.app"})
 public class UserController {
+    @Autowired private UserService userService;
 
-    @Autowired
-    private UserService userService;
-
-    // Register new user
     @PostMapping("/register")
     public User registerUser(@RequestBody User user) {
         return userService.registerUser(user);
     }
 
-    // Login user
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequest request) {
         try {
-            String email = request.getEmail();
-            String password = request.getPassword();
-            
-            // ✅ Fix: login() returns a User, NOT Optional<User>
-            User user = userService.login(email, password);
-            
-            return ResponseEntity.ok(user); // you can return DTO instead of full user if needed
+            User user = userService.login(request.getEmail(), request.getPassword());
+            return ResponseEntity.ok(user);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Collections.singletonMap("error", "Login failed: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Collections.singletonMap("error", "Login failed: " + e.getMessage()));
         }
     }
 
-
-    // Get all users
     @GetMapping
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
-    }
+    public List<User> getAllUsers() { return userService.getAllUsers(); }
 
-    // Get user by ID
     @GetMapping("/{id}")
-    public Optional<User> getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
-    }
+    public Optional<User> getUserById(@PathVariable Long id) { return userService.getUserById(id); }
 
-    // Update user by ID
     @PutMapping("/{id}")
     public User updateUser(@PathVariable Long id, @RequestBody User updatedUser) {
         return userService.updateUser(id, updatedUser);
     }
 
-    // Delete user by ID
     @DeleteMapping("/{id}")
-    public void deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-    }
-// // Match roommates
-//    @GetMapping("/match/{id}")
-//    public List<User> matchRoommates(@PathVariable Long id) {
-//        return userService.matchRoommates(id);
-//    }
-
+    public void deleteUser(@PathVariable Long id) { userService.deleteUser(id); }
 }
