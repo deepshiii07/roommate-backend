@@ -12,7 +12,8 @@ public class CorsConfig implements WebMvcConfigurer {
             .allowedOriginPatterns(
                 "http://localhost:[*]",
                 "http://127.0.0.1:[*]",
-                "https://roomiesync.vercel.app"
+                "https://roomiesync.vercel.app",
+                "https://roomie-sync-seven.vercel.app"
             )
             .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .allowedHeaders("*")
