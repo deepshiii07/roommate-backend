@@ -41,7 +41,11 @@ public class MatchService {
             Score score = score(mine, theirs);
             results.add(new RoommateMatchResponse(candidate.getId(), candidate.getName(),
                 candidate.getEmail(), candidate.getPhone(), candidate.getGender(),
-                candidate.getLocation(), score.value, score.reasons));
+                candidate.getLocation(), score.value, score.reasons,
+                theirs.getLifestyleSmoking(), theirs.getLifestyleDrinking(),
+                theirs.getLifestyleSleep(), theirs.getLifestyleRoutine(),
+                theirs.getLifestyleCleanliness(), theirs.getLifestyleSocial(),
+                theirs.getLifestyleGuests()));
         }
         results.sort(Comparator.comparingInt(RoommateMatchResponse::getCompatibilityScore).reversed());
         return results;
